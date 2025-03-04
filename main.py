@@ -1,6 +1,6 @@
 import os
 from steam_web_api import Steam
-from decouple import config
+#from decouple import config
 
 os.environ["STEAM_API_KEY"] = "F99DAE5FCBC5B6A41CC50A5F5109DA58"
 
