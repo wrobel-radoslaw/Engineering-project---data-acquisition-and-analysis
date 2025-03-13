@@ -3,6 +3,7 @@ import csv
 import os
 import datetime as dt
 import requests
+import string
 from PIL import ImageTk, Image
 from steam_web_api import Steam
 
@@ -38,15 +39,19 @@ def save_steam_profile_data_to_csv(user_data):
     if not os.path.exists("Steam Profile Data"):
         os.makedirs("Steam Profile Data")
 
-    # Create a unique filename based on the current date and time
-    filename = dt.datetime.now().strftime("Steam Profile Data/steam_profile_data_%Y%m%d_%H%M%S.csv")
+    # Create a unique filename based on the current date and time, including the Steam ID
+    filename = dt.datetime.now().strftime(f"Steam Profile Data/steam_profile_data_{user_data['Steam ID']}_%Y%m%d_%H%M%S.csv")
+
+    # Making sure user's Steam ID is saved correct
+    user_data["Steam ID"] = str(user_data["Steam ID"])
+    user_data["Primary Clan ID"] = str(user_data["Primary Clan ID"])
 
     # Write data to CSV file
     with open(filename, 'w', newline='') as csvfile:
-        fieldnames = list(user_data.keys())
-        writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerow(user_data)
+        writer = csv.writer(csvfile)
+        for key, value in user_data.items():
+            writer.writerow([key, value])
+            writer.writerow([])  # Add an empty line between entries
 
 if SelectFunction in ["1", "Weather", "Weather Data", "Weather Data Analysis"]:
     # Reading API key from text file
@@ -179,40 +184,56 @@ elif SelectFunction in ["2", "Steam", "Steam Data", "Steam Data Analysis", "Prof
 
     steam = Steam(KEY)
 
-    # arguments: steamid
-    user = steam.users.get_user_details("76561198302458528")
-    print(user)
+    print("Please give your Steam profile ID:")
+    ProfileID = input("Steam ID: ")
 
-    user_data = {
-        "Steam ID": user['player']['steamid'],
-        "Community Visibility State": user['player']['communityvisibilitystate'],
-        "Profile State": user['player']['profilestate'],
-        "Persona Name": user['player']['personaname'],
-        "Profile URL": user['player']['profileurl'],
-        "Avatar URL": user['player']['avatar'],
-        "Avatar Medium URL": user['player']['avatarmedium'],
-        "Avatar Full URL": user['player']['avatarfull'],
-        "Avatar Hash": user['player']['avatarhash'],
-        "Last Logoff": user['player']['lastlogoff'],
-        "Persona State": user['player']['personastate'],
-        "Primary Clan ID": user['player']['primaryclanid'],
-        "Time Created": user['player']['timecreated'],
-        "Persona State Flags": user['player']['personastateflags']
-    }
+    # Check if the `ProfileID` contains only numbers
+    if (ProfileID.isdigit() and len(ProfileID) == 17):
+        user = steam.users.get_user_details(ProfileID)
+        print(user)
 
-    # Save Steam profile data to CSV file
-    save_steam_profile_data_to_csv(user_data)
-
-    # Opening text file in write mode
-    with open("user_details.txt", "w") as file:
-        # Information about the source
-        file.write("Source: Steam Web API documentation - https://developer.valvesoftware.com/wiki/Steam_Web_API\n\n")
+        user_data = {
+            "Steam ID": str(user['player']['steamid']),
+            "Community Visibility State": user['player']['communityvisibilitystate'],
+            "Profile State": user['player']['profilestate'],
+            "Persona Name": user['player']['personaname'],
+            "Profile URL": user['player']['profileurl'],
+            "Avatar URL": user['player']['avatar'],
+            "Avatar Medium URL": user['player']['avatarmedium'],
+            "Avatar Full URL": user['player']['avatarfull'],
+            "Avatar Hash": user['player']['avatarhash'],
+            "Last Logoff": user['player'].get('lastlogoff', 'N/A'),  # Use .get() to avoid KeyError
+            "Persona State": user['player']['personastate'],
+            "Primary Clan ID": str(user['player']['primaryclanid']),
+            "Time Created": user['player']['timecreated'],
+            "Persona State Flags": user['player']['personastateflags']
+        }
         
-        # Saving data to a text file
-        for key, value in user_data.items():
-            file.write(f"{key}: {value}\n")
+        # Saving Steam Profile ID to database
+        if not os.path.exists("Steam Profile Database"):
+            os.makedirs("Steam Profile Database")
+        with open("Steam Profile Database/steam_ids.txt", "a") as SteamID_Database:
+            SteamID_Database.write(personaname + " " + ProfileID + "\n")
+        
+        SavingData = input("Do you want to save all the data to a CSV file? Type Yes/No \n").strip().lower()
+        if SavingData in ["yes", "y", "ye"]:
+            # Save Steam profile data to CSV file
+            save_steam_profile_data_to_csv(user_data)
 
-    print("User data has been saved in a text file. Check user_details.txt")
+            # Opening text file in write mode
+            with open("user_details.txt", "w") as file:
+                # Information about the source
+                file.write("Source: Steam Web API documentation - https://developer.valvesoftware.com/wiki/Steam_Web_API\n\n")
+                
+                # Saving data to a text file
+                for key, value in user_data.items():
+                    file.write(f"{key}: {value}\n")
+
+            print("User data has been saved in a text file. Check steam_profile_data in your Steam Profile Data catalog.")
+        
+    else:
+        print("Invalid input. Please check if your Steam ID contains only numbers and it's 17 digits long.")
+        
 
 else:
     print("Wrong input!")
