@@ -84,7 +84,7 @@ if SelectFunction in ["1", "Weather", "Weather Data", "Weather Data Analysis"]:
     else:
         img = ImageTk.PhotoImage(Image.open('moon.png'))
     panel = Label(root, image=img)
-    panel.place(x=240, y=330)  # Adjusted position
+    panel.place(x=300, y=75)  # Adjusted position
 
     # Searching for your city and weather conditions
     city_name_var = StringVar()
@@ -155,7 +155,7 @@ if SelectFunction in ["1", "Weather", "Weather Data", "Weather Data Analysis"]:
     label_lat = Label(root, text="Latitude: ...", bg='#DDEEFF', font=("Helvetica", 15))
     label_lat.place(x=140, y=95)
     label_temp = Label(root, text="Temperature: ...", bg='#DDEEFF', font=("Helvetica", 32), fg='black')
-    label_temp.place(x=10, y=220)
+    label_temp.place(x=10, y=235)
     label_humidity = Label(root, text="Humidity: ...", bg='#DDEEFF', font=("bold", 15))
     label_humidity.place(x=10, y=310)
     label_wind_speed = Label(root, text="Wind Speed: ...", bg='#DDEEFF', font=("bold", 15))
@@ -166,10 +166,6 @@ if SelectFunction in ["1", "Weather", "Weather Data", "Weather Data Analysis"]:
     label_sunrise.place(x=10, y=400)
     label_sunset = Label(root, text="Sunset: ...", bg='#DDEEFF', font=("bold", 15))
     label_sunset.place(x=10, y=430)
-
-    # Note
-    note = Label(root, text="All temperatures in degree Celsius and Fahrenheit", bg='#DDEEFF', font=("italic", 10))
-    note.place(x=95, y=495)
 
     # Run the application
     root.mainloop()
