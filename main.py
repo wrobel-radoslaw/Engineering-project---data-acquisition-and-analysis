@@ -1,24 +1,34 @@
 from tkinter import *
+import matplotlib.pyplot as plt
+import pandas as pd
+import psycopg2
+import psycopg2.extras
+from psycopg2.extras import execute_batch
 import csv
 import os
+import glob
 import datetime as dt
 import requests
 import string
 from PIL import ImageTk, Image
 from steam_web_api import Steam
 
+print("\n")
 print(f"Welcome! Enter the number of the function you would like to use: ")
 print(f"1. Weather Data and Analysis")
 print(f"2. Steam Profile Data Analysis")
-SelectFunction = input("Enter what function do you want to use: ").capitalize()
+print(f"3. PostgreSQL Database with saving weather data from CSV files. Here you can also draw graphs based on certain data")
+print("\n")
+
+SelectFunction = input("Enter what function do you want to use: \n")
 
 def save_weather_data_to_csv(city, country, longitude, latitude, temp_celsius, temp_fahrenheit, humidity, wind_speed, description, sunrise_time, sunset_time):
     # Create directory if it doesn't exist
-    if not os.path.exists("CSV Weather Data"):
-        os.makedirs("CSV Weather Data")
+    if not os.path.exists("CSVWeatherData"):
+        os.makedirs("CSVWeatherData")
 
     # Create a unique filename based on the current date and time
-    filename = dt.datetime.now().strftime("CSV Weather Data/weather_data_%Y%m%d_%H%M%S.csv")
+    filename = dt.datetime.now().strftime("CSVWeatherData/weather_data_%Y%m%d_%H%M%S.csv")
 
     # Data to be written to the CSV file
     data = [
@@ -187,6 +197,8 @@ elif SelectFunction in ["2", "Steam", "Steam Data", "Steam Data Analysis", "Prof
     if (ProfileID.isdigit() and len(ProfileID) == 17):
         user = steam.users.get_user_details(ProfileID)
         print(user)
+    else:
+        print("Invalid input. Please check if your Steam ID contains only numbers and it's 17 digits long.")
 
         user_data = {
             "Steam ID": str(user['player']['steamid']),
@@ -226,10 +238,123 @@ elif SelectFunction in ["2", "Steam", "Steam Data", "Steam Data Analysis", "Prof
                     file.write(f"{key}: {value}\n")
 
             print("User data has been saved in a text file. Check steam_profile_data in your Steam Profile Data catalog.")
+
+elif SelectFunction in ["3", "PostgreSQL", "Database", "PostgreSQL Database", "PostgreSQL Database with saving weather data from CSV files"]:
+
+    
+    # PostgreSQL connection details
+    hostname = 'localhost'
+    database = 'engineeringproject'
+    username = 'postgres'
+    pwd = 'admin'
+    port_id = 5432
+
+    # Path to the folder containing CSV files
+    csv_folder = r"C:\Users\radek\Documents\GitHub\Engineering-project---data-acquisition-and-analysis\CSVWeatherData"
+
+    try:
+        # Connect to the PostgreSQL database
+        conn = psycopg2.connect(
+            host=hostname,
+            database=database,
+            user=username,
+            password=pwd,
+            port=port_id
+        )
+        cursor = conn.cursor()
+
+        print("*** Connected to the PostgreSQL database. ***")
+        print("Hello! You're automaticly connected to the PostgreSQL database.")
+        print("1. Create a graph based on the data from the database")
+        print("2. Save data from CSV files to the database\n")
+
+        SelectFunction = input("Enter what function do you want to use: ")
         
-    else:
-        print("Invalid input. Please check if your Steam ID contains only numbers and it's 17 digits long.")
-        
+        if SelectFunction in ["1", "Create", "Create a graph", "Create graph", "Graph"]:
+            figure = plt.figure()
+            axes = figure.add_subplot(1, 1, 1)
+            plt.show()
+
+        elif SelectFunction in ["2", "Save", "Save data", "Save data to database", "Save data to PostgreSQL"]:
+            # Recreate the weatherdata table
+            delete_table_query = "DROP TABLE IF EXISTS weatherdata;"
+            cursor.execute(delete_table_query)
+
+            # Create the weatherdata table if it does not exist
+            create_table_query = '''
+            CREATE TABLE IF NOT EXISTS weatherdata (
+                id SERIAL PRIMARY KEY,
+                city VARCHAR(50) NOT NULL,
+                country VARCHAR(50) NOT NULL,
+                longitude DOUBLE PRECISION NOT NULL,
+                latitude DOUBLE PRECISION NOT NULL,
+                temperature_celsius DOUBLE PRECISION NOT NULL,
+                temperature_fahrenheit DOUBLE PRECISION NOT NULL,
+                humidity INTEGER NOT NULL,
+                wind_speed DOUBLE PRECISION NOT NULL,
+                description VARCHAR(255) NOT NULL,
+                sunrise_time TIME NOT NULL,
+                sunset_time TIME NOT NULL
+            );
+            '''
+            cursor.execute(create_table_query)
+            conn.commit()
+
+            # Retrieve all CSV files from the specified folder
+            csv_files = glob.glob(os.path.join(csv_folder, '*.csv'))
+
+            # Iterate through each CSV file
+            for file in csv_files:
+                print(f"Processing file: {os.path.basename(file)}")
+
+                with open(file, 'r', encoding='utf-8') as csvfile:
+                    reader = csv.reader(csvfile)
+                    headers = next(reader)  # Skip the header row
+
+                    # Prepare data for batch insertion
+                    data = []
+                    for row in reader:
+                        try:
+                            data.append((
+                                row[0],  # City
+                                row[1],  # Country
+                                float(row[2]),  # Longitude
+                                float(row[3]),  # Latitude
+                                float(row[4]),  # Temperature (C)
+                                float(row[5]),  # Temperature (F)
+                                int(row[6]),  # Humidity (%)
+                                float(row[7]),  # Wind Speed (m/s)
+                                row[8],  # Description
+                                row[9],  # Sunrise (HH:MM:SS)
+                                row[10]  # Sunset (HH:MM:SS)
+                            ))
+                        except Exception as e:
+                            print(f"Error processing row: {row}. Details: {e}")
+
+                    # Insert data into the table using execute_batch for efficiency
+                    insert_query = '''
+                    INSERT INTO weatherdata (
+                        city, country, longitude, latitude, temperature_celsius,
+                        temperature_fahrenheit, humidity, wind_speed, description,
+                        sunrise_time, sunset_time
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
+                    '''
+                    try:
+                        execute_batch(cursor, insert_query, data)
+                        conn.commit()
+                        print(f"Inserted {len(data)} records from file {os.path.basename(file)}")
+                    except Exception as e:
+                        print(f"Error inserting data from file {os.path.basename(file)}. Details: {e}")
+                        conn.rollback()
+
+    except Exception as error:
+        print(f"Error while working with the database: {error}")
+    finally:
+        if cursor is not None:
+            cursor.close()
+        if conn is not None:
+            conn.close()
+        print("*** PostgreSQL connection has been closed. ***\n")
 
 else:
     print("Wrong input!")
